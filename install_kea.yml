@@ -1,0 +1,21 @@
+---
+- name: install kea dhcp server
+  hosts: all
+  gather_facts: false
+  tasks:
+    - name: install kea
+      ansible.builtin.dnf:
+        name: kea
+        state: present
+    - name: enable kea service
+      ansible.builtin.service:
+        name: kea-dhcp4
+        state: started
+        enabled: true
+    - name: open firewall ports for dhcp
+      ansible.posix.firewalld:
+        service: dhcp
+        state: enabled
+        permanent: true
+        immediate: true
+

@@ -1,0 +1,70 @@
+---
+- name: Append reservation to Kea config
+  gather_facts: false
+  hosts: all
+  become: true
+  vars:
+    kea_config_path: "/etc/kea/kea-dhcp4.conf"  # override via survey
+    new_reservation:
+#      hostname: "test"
+#      hw_address: "52:54:00:f6:dd:0a"
+#      ip_address: "172.31.100.61"
+      hostname: "{{ hostname }}"
+      hw_address: "{{ mac_addr }}"
+      ip_address: "{{ ip_addr }}"
+  tasks:
+    - name: Read current Kea configuration
+      ansible.builtin.slurp:
+        src: "{{ kea_config_path }}"
+      register: kea_config_b64
+
+    - name: Parse JSON configuration
+      ansible.builtin.set_fact:
+        kea_config: "{{ kea_config_b64.content | b64decode | from_json }}"
+
+    - name: Check if MAC already exists
+      ansible.builtin.set_fact:
+        mac_exists: "{{ kea_config.Dhcp4.subnet4[0].reservations |
+                               selectattr('hw-address', 'equalto', new_reservation.hw_address) |
+                               list | length > 0 }}"
+
+    - name: Check if IP address already exists
+      ansible.builtin.set_fact:
+        ip_exists: "{{ kea_config.Dhcp4.subnet4[0].reservations |
+                               selectattr('ip-address', 'equalto', new_reservation.ip_address) |
+                               list | length > 0 }}"
+
+    - name: Check if host already exists
+      ansible.builtin.set_fact:
+        hostname_exists: "{{ kea_config.Dhcp4.subnet4[0].reservations |
+                               selectattr('hostname', 'equalto', new_reservation.hostname) |
+                               list | length > 0 }}"
+
+    - name: Combine if exists checks
+      ansible.builtin.set_fact:
+        reservation_exists: "{{ mac_exists or ip_exists or hostname_exists }}"
+
+    - name: Add new reservation to configuration
+      ansible.builtin.set_fact:
+        kea_config: "{{ kea_config | combine({
+          'Dhcp4': kea_config.Dhcp4 | combine({
+            'subnet4': [
+              kea_config.Dhcp4.subnet4[0] | combine({
+                'reservations': kea_config.Dhcp4.subnet4[0].reservations + [{
+                  'hostname': new_reservation.hostname,
+                  'hw-address': new_reservation.hw_address,
+                  'ip-address': new_reservation.ip_address
+                }]
+              })
+            ]
+          })
+        }, recursive=True) }}"
+      when: not reservation_exists | bool
+
+    - name: Write updated configuration to file
+      ansible.builtin.copy:
+        content: "{{ kea_config | to_nice_json(indent=2) }}\n"
+        dest: "{{ kea_config_path }}"
+        mode: '0644'
+        backup: false
+      when: not reservation_exists | bool
