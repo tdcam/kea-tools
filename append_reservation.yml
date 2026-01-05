@@ -68,3 +68,8 @@
         mode: '0644'
         backup: false
       when: not reservation_exists | bool
+
+    - name: Restart kea-dhcpd service
+      ansible.builtin.systemd_service:
+        name: kea-dhcp4
+        state: restarted
