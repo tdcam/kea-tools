@@ -9,7 +9,7 @@
 #      hostname: "test"
 #      hw_address: "52:54:00:f6:dd:0a"
 #      ip_address: "172.31.100.61"
-      hostname: "{{ hostname }}"
+      hostname: "{{ lifecycle }}-{{ class }}-{{ srvnumber }}"
       hw_address: "{{ mac_addr }}"
       ip_address: "{{ ip_addr }}"
   tasks:
